@@ -26,7 +26,7 @@ A real-time computer vision dashboard showcasing YOLO26 capabilities for retail 
 
 - **Python 3.8+**
 - **Node.js 18+**
-- **Mac M1/M2/M3/M4** (Apple Silicon GPU support) or CPU
+- **GPU (Optional)**: Apple Silicon (M1/M2/M3/M4), NVIDIA CUDA, or CPU
 
 ## Installation
 
