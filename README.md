@@ -4,7 +4,15 @@ A real-time computer vision dashboard showcasing YOLO26 capabilities for retail 
 
 ![Dashboard Preview](https://img.shields.io/badge/YOLO-26-blue?style=for-the-badge&logo=ultralytics) ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
 
-![Dashboard Screenshot](mainimage.png)
+![Dashboard Screenshot](media/mainimage.png)
+
+## About YOLO26
+
+YOLO26 represents a breakthrough in edge-first computer vision, delivering state-of-the-art accuracy with exceptional speed. Learn more:
+- [YOLO26 Documentation](https://docs.ultralytics.com/models/yolo26/?utm_source=infl&utm_medium=general&utm_campaign=yolo26&utm_term=augmentedai)
+- [Ultralytics Platform](https://platform.ultralytics.com/ultralytics/yolo26?utm_source=infl&utm_medium=general&utm_campaign=yolo26&utm_term=augmentedai)
+
+![YOLO26 Performance Benchmark](media/Ultralytics-YOLO26-Benchmark.jpg)
 
 ## Features
 
@@ -20,7 +28,7 @@ A real-time computer vision dashboard showcasing YOLO26 capabilities for retail 
 
 ## Demo
 
-![Demo GIF](demo.gif)
+![Demo GIF](media/demo.gif)
 
 ## Prerequisites
 
@@ -90,6 +98,7 @@ RetailAutomation/
 │   │   ├── App.tsx      # Main dashboard
 │   │   └── index.css    # Futuristic styling
 │   └── package.json
+├── media/               # Screenshots and demo files
 ├── retailvideo.mp4      # Sample retail footage
 └── README.md
 ```
