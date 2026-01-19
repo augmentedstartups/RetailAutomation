@@ -115,23 +115,24 @@ function App() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 h-full overflow-y-auto pr-2">
-            <div className="h-64">
+        <div className="flex flex-col h-full">
+            <div className="h-64 flex-shrink-0 mb-6">
                 <AnalyticsGraph data={graphData} currentCount={metrics.people_count} />
             </div>
 
-            <Card>
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Frames Processed</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold font-mono">{metrics.frame_count}</div>
-                    <p className="text-xs text-muted-foreground">Total frames analyzed</p>
-                </CardContent>
-            </Card>
+            <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Frames Processed</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold font-mono">{metrics.frame_count}</div>
+                        <p className="text-xs text-muted-foreground">Total frames analyzed</p>
+                    </CardContent>
+                </Card>
 
-            <DashboardControls toggles={toggles} setToggles={setToggles} />
-
+                <DashboardControls toggles={toggles} setToggles={setToggles} />
+            </div>
         </div>
       </div>
     </div>

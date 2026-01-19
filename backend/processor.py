@@ -113,119 +113,128 @@ class VideoProcessor:
 
     def get_video_frame(self):
         while True:
-            if self.toggles.get("paused") and self.last_frame_bytes is not None:
-                time.sleep(0.1)
-                yield self.last_frame_bytes
-                continue
-            start_time = time.time()
-            success, frame = self.cap.read()
-            if not success:
-                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                continue
+            try:
+                if self.toggles.get("paused") and self.last_frame_bytes is not None:
+                    time.sleep(0.1)
+                    yield self.last_frame_bytes
+                    continue
+                start_time = time.time()
+                success, frame = self.cap.read()
+                if not success or frame is None:
+                    self.cap.release()
+                    self.cap = cv2.VideoCapture(self.video_path)
+                    continue
 
-            self.metrics["frame_count"] += 1
+                self.metrics["frame_count"] += 1
 
-            if self.heatmap_accum is None:
-                self.heatmap_accum = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.float32)
+                if self.heatmap_accum is None:
+                    self.heatmap_accum = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.float32)
 
-            annotated_frame = frame.copy()
+                annotated_frame = frame.copy()
 
-            size = self.toggles.get("model_size", "m")
-            if size not in self.available_sizes:
-                size = "m"
+                size = self.toggles.get("model_size", "m")
+                if size not in self.available_sizes:
+                    size = "m"
 
-            current_model = self._get_model(size, "det")
-            if self.toggles["segmentation"]:
-                current_model = self._get_model(size, "seg")
-            elif self.toggles["pose"]:
-                current_model = self._get_model(size, "pose")
+                current_model = self._get_model(size, "det")
+                if self.toggles["segmentation"]:
+                    current_model = self._get_model(size, "seg")
+                elif self.toggles["pose"]:
+                    current_model = self._get_model(size, "pose")
 
-            conf = float(self.toggles.get("confidence", 0.25))
-            if self.toggles["tracking"]:
-                results = current_model.track(frame, persist=True, verbose=False, classes=[0], device=self.device, conf=conf)
-            else:
-                results = current_model(frame, verbose=False, classes=[0], device=self.device, conf=conf)
+                conf = float(self.toggles.get("confidence", 0.25))
+                if self.toggles["tracking"]:
+                    results = current_model.track(frame, persist=True, verbose=False, classes=[0], device=self.device, conf=conf)
+                else:
+                    results = current_model(frame, verbose=False, classes=[0], device=self.device, conf=conf)
 
-            if results:
-                result = results[0]
-                boxes = result.boxes
-                self.metrics["people_count"] = len(boxes) if boxes is not None else 0
+                if results:
+                    result = results[0]
+                    boxes = result.boxes
+                    self.metrics["people_count"] = len(boxes) if boxes is not None else 0
 
-                if self.toggles["segmentation"] and result.masks is not None:
-                    masks = result.masks.data.cpu().numpy().astype(bool)
-                    self._overlay_masks(annotated_frame, masks, (140, 70, 255))
+                    if self.toggles["segmentation"] and result.masks is not None:
+                        masks = result.masks.data.cpu().numpy().astype(bool)
+                        self._overlay_masks(annotated_frame, masks, (140, 70, 255))
 
-                if self.toggles["pose"] and result.keypoints is not None:
-                    kpts = result.keypoints.xy.cpu().numpy()
-                    for person in kpts:
-                        for x, y in person:
-                            if x > 0 and y > 0:
-                                cv2.circle(annotated_frame, (int(x), int(y)), 2, (255, 255, 255), -1)
+                    if self.toggles["pose"] and result.keypoints is not None:
+                        kpts = result.keypoints.xy.cpu().numpy()
+                        for person in kpts:
+                            for x, y in person:
+                                if x > 0 and y > 0:
+                                    cv2.circle(annotated_frame, (int(x), int(y)), 2, (255, 255, 255), -1)
 
-                if boxes.id is not None:
-                    track_ids = boxes.id.int().cpu().tolist()
-                    xywh = boxes.xywh.cpu()
+                    if boxes.id is not None:
+                        track_ids = boxes.id.int().cpu().tolist()
+                        xywh = boxes.xywh.cpu()
 
-                    for box, track_id in zip(xywh, track_ids):
-                        x, y, w, h = box
-                        center = (int(x), int(y))
-                        x1 = x - w / 2
-                        y1 = y - h / 2
-                        x2 = x + w / 2
-                        y2 = y + h / 2
-                        color = self._color_from_id(track_id)
-                        self._draw_futuristic_box(annotated_frame, x1, y1, x2, y2, color, track_id)
+                        for box, track_id in zip(xywh, track_ids):
+                            x, y, w, h = box
+                            center = (int(x), int(y))
+                            x1 = x - w / 2
+                            y1 = y - h / 2
+                            x2 = x + w / 2
+                            y2 = y + h / 2
+                            color = self._color_from_id(track_id)
+                            self._draw_futuristic_box(annotated_frame, x1, y1, x2, y2, color, track_id)
 
-                        if self.toggles["trails"]:
-                            trail_length = int(self.toggles.get("trail_length", 60))
-                            history = self.track_history[track_id]
-                            history.append(center)
-                            while len(history) > trail_length:
-                                history.popleft()
-                            points = np.hstack(history).astype(np.int32).reshape((-1, 1, 2))
-                            points = points.reshape((-1, 2))
-                            total = len(points)
-                            for i in range(1, total):
-                                t = i / max(1, total - 1)
-                                thickness = max(1, int(1 + (t * 3)))
-                                cv2.line(
-                                    annotated_frame,
-                                    tuple(points[i - 1]),
-                                    tuple(points[i]),
-                                    (0, 255, 255),
-                                    thickness,
-                                )
+                            if self.toggles["trails"]:
+                                trail_length = int(self.toggles.get("trail_length", 60))
+                                history = self.track_history[track_id]
+                                history.append(center)
+                                while len(history) > trail_length:
+                                    history.popleft()
+                                points = np.hstack(history).astype(np.int32).reshape((-1, 1, 2))
+                                points = points.reshape((-1, 2))
+                                total = len(points)
+                                for i in range(1, total):
+                                    t = i / max(1, total - 1)
+                                    thickness = max(1, int(1 + (t * 3)))
+                                    cv2.line(
+                                        annotated_frame,
+                                        tuple(points[i - 1]),
+                                        tuple(points[i]),
+                                        (0, 255, 255),
+                                        thickness,
+                                    )
 
-                        if self.toggles["heatmap"]:
-                            cv2.circle(self.heatmap_accum, center, 25, 1.0, -1)
+                            if self.toggles["heatmap"]:
+                                cv2.circle(self.heatmap_accum, center, 25, 1.0, -1)
 
-                elif self.toggles["heatmap"] and len(boxes) > 0:
-                    xywh = boxes.xywh.cpu()
-                    for box in xywh:
-                        x, y, w, h = box
-                        cv2.circle(self.heatmap_accum, (int(x), int(y)), 25, 1.0, -1)
+                    elif self.toggles["heatmap"] and len(boxes) > 0:
+                        xywh = boxes.xywh.cpu()
+                        for box in xywh:
+                            x, y, w, h = box
+                            cv2.circle(self.heatmap_accum, (int(x), int(y)), 25, 1.0, -1)
 
-                if boxes.id is None and len(boxes) > 0:
-                    xyxy = boxes.xyxy.cpu()
-                    for box in xyxy:
-                        x1, y1, x2, y2 = box
-                        color = (0, 255, 255)
-                        self._draw_futuristic_box(annotated_frame, x1, y1, x2, y2, color)
+                    if boxes.id is None and len(boxes) > 0:
+                        xyxy = boxes.xyxy.cpu()
+                        for box in xyxy:
+                            x1, y1, x2, y2 = box
+                            color = (0, 255, 255)
+                            self._draw_futuristic_box(annotated_frame, x1, y1, x2, y2, color)
 
-            if self.toggles["heatmap"]:
-                heatmap_blur = cv2.GaussianBlur(self.heatmap_accum, (0, 0), 15)
-                heatmap_norm = cv2.normalize(heatmap_blur, None, 0, 255, cv2.NORM_MINMAX)
-                heatmap_color = cv2.applyColorMap(heatmap_norm.astype(np.uint8), cv2.COLORMAP_TURBO)
-                mask = heatmap_norm > 5
-                overlay = annotated_frame.copy()
-                overlay[mask] = heatmap_color[mask]
-                annotated_frame = cv2.addWeighted(overlay, 0.55, annotated_frame, 0.45, 0)
+                if self.toggles["heatmap"]:
+                    heatmap_blur = cv2.GaussianBlur(self.heatmap_accum, (0, 0), 15)
+                    heatmap_norm = cv2.normalize(heatmap_blur, None, 0, 255, cv2.NORM_MINMAX)
+                    heatmap_color = cv2.applyColorMap(heatmap_norm.astype(np.uint8), cv2.COLORMAP_TURBO)
+                    mask = heatmap_norm > 5
+                    overlay = annotated_frame.copy()
+                    overlay[mask] = heatmap_color[mask]
+                    annotated_frame = cv2.addWeighted(overlay, 0.55, annotated_frame, 0.45, 0)
 
-            fps = 1.0 / (time.time() - start_time)
-            self.metrics["fps"] = int(fps)
+                fps = 1.0 / (time.time() - start_time)
+                self.metrics["fps"] = int(fps)
 
-            ret, buffer = cv2.imencode('.jpg', annotated_frame)
-            frame_bytes = buffer.tobytes()
-            self.last_frame_bytes = frame_bytes
+                ret, buffer = cv2.imencode('.jpg', annotated_frame)
+                frame_bytes = buffer.tobytes()
+                self.last_frame_bytes = frame_bytes
 
-            yield frame_bytes
+                yield frame_bytes
+            except Exception as e:
+                print(f"Frame processing error: {e}")
+                if self.last_frame_bytes is not None:
+                    yield self.last_frame_bytes
+                else:
+                    time.sleep(0.1)
+                    continue

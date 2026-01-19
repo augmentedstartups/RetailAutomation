@@ -42,7 +42,14 @@ const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggl
     });
 
     const handleToggleChange = async (key: keyof Toggles, value: boolean) => {
-        const newToggles = { ...toggles, [key]: value };
+        let newToggles = { ...toggles, [key]: value };
+        
+        if (key === 'segmentation' && value) {
+            newToggles.pose = false;
+        } else if (key === 'pose' && value) {
+            newToggles.segmentation = false;
+        }
+        
         setToggles(newToggles);
         try {
             await axios.post(API_URL, buildPayload(newToggles));
@@ -160,7 +167,8 @@ const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggl
                     </div>
                     <Switch 
                         checked={toggles.segmentation} 
-                        onCheckedChange={(c) => handleToggleChange('segmentation', c)} 
+                        onCheckedChange={(c) => handleToggleChange('segmentation', c)}
+                        disabled={toggles.pose}
                     />
                 </div>
                  <div className="flex items-center justify-between">
@@ -170,7 +178,8 @@ const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggl
                     </div>
                     <Switch 
                         checked={toggles.pose} 
-                        onCheckedChange={(c) => handleToggleChange('pose', c)} 
+                        onCheckedChange={(c) => handleToggleChange('pose', c)}
+                        disabled={toggles.segmentation}
                     />
                 </div>
                  <div className="flex items-center justify-between">
