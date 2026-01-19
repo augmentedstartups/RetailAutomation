@@ -4,6 +4,8 @@ A real-time computer vision dashboard showcasing YOLO26 capabilities for retail 
 
 ![Dashboard Preview](https://img.shields.io/badge/YOLO-26-blue?style=for-the-badge&logo=ultralytics) ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
 
+![Demo](demo.gif)
+
 ## Features
 
 - **Object Detection & Tracking**: Real-time person detection with ID tracking
