@@ -28,6 +28,9 @@ class ToggleRequest(BaseModel):
     pose: bool = False
     heatmap: bool = False
     trail_length: int = 60
+    model_size: str = "m"
+    confidence: float = 0.25
+    paused: bool = False
 
 @app.get("/")
 async def root():

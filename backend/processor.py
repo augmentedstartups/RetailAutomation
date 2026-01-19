@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
+from ultralytics.utils.downloads import attempt_download_asset
 from collections import defaultdict, deque
+from pathlib import Path
 import time
 import torch
 
@@ -10,9 +12,11 @@ class VideoProcessor:
         self.video_path = video_path
         self.cap = cv2.VideoCapture(self.video_path)
 
-        self.model_det = YOLO("yolo26m.pt")
-        self.model_seg = YOLO("yolo26m-seg.pt")
-        self.model_pose = YOLO("yolo26m-pose.pt")
+        self.model_dir = Path(__file__).resolve().parent / "models"
+        self.model_dir.mkdir(parents=True, exist_ok=True)
+        self.available_sizes = ["n", "s", "m", "l", "x"]
+        self._ensure_weights()
+        self.model_cache = {}
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
 
         self.track_history = defaultdict(deque)
@@ -25,7 +29,10 @@ class VideoProcessor:
             "segmentation": False,
             "pose": False,
             "heatmap": False,
-            "trail_length": 60
+            "trail_length": 60,
+            "model_size": "m",
+            "confidence": 0.25,
+            "paused": False
         }
 
         self.metrics = {
@@ -34,9 +41,36 @@ class VideoProcessor:
             "frame_count": 0
         }
         self.color_cache = {}
+        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.last_frame_bytes = None
 
     def update_toggles(self, new_toggles):
         self.toggles.update(new_toggles)
+
+    def _weights_path(self, size, task):
+        suffix = "" if task == "det" else f"-{task}"
+        name = f"yolo26{size}{suffix}.pt"
+        return self.model_dir / name
+
+    def _ensure_weights(self):
+        root_dir = self.model_dir.parent.parent
+        for path in root_dir.glob("yolo26*.pt"):
+            target = self.model_dir / path.name
+            if not target.exists():
+                path.replace(target)
+        for size in self.available_sizes:
+            for task in ["det", "seg", "pose"]:
+                path = self._weights_path(size, task)
+                attempt_download_asset(str(path), release="latest")
+
+    def _get_model(self, size, task):
+        key = f"{size}-{task}"
+        if key in self.model_cache:
+            return self.model_cache[key]
+        path = self._weights_path(size, task)
+        model = YOLO(str(path))
+        self.model_cache[key] = model
+        return model
 
     def _color_from_id(self, track_id):
         if track_id in self.color_cache:
@@ -79,6 +113,10 @@ class VideoProcessor:
 
     def get_video_frame(self):
         while True:
+            if self.toggles.get("paused") and self.last_frame_bytes is not None:
+                time.sleep(0.1)
+                yield self.last_frame_bytes
+                continue
             start_time = time.time()
             success, frame = self.cap.read()
             if not success:
@@ -92,16 +130,21 @@ class VideoProcessor:
 
             annotated_frame = frame.copy()
 
-            current_model = self.model_det
-            if self.toggles["segmentation"]:
-                current_model = self.model_seg
-            elif self.toggles["pose"]:
-                current_model = self.model_pose
+            size = self.toggles.get("model_size", "m")
+            if size not in self.available_sizes:
+                size = "m"
 
+            current_model = self._get_model(size, "det")
+            if self.toggles["segmentation"]:
+                current_model = self._get_model(size, "seg")
+            elif self.toggles["pose"]:
+                current_model = self._get_model(size, "pose")
+
+            conf = float(self.toggles.get("confidence", 0.25))
             if self.toggles["tracking"]:
-                results = current_model.track(frame, persist=True, verbose=False, classes=[0], device=self.device)
+                results = current_model.track(frame, persist=True, verbose=False, classes=[0], device=self.device, conf=conf)
             else:
-                results = current_model(frame, verbose=False, classes=[0], device=self.device)
+                results = current_model(frame, verbose=False, classes=[0], device=self.device, conf=conf)
 
             if results:
                 result = results[0]
@@ -183,5 +226,6 @@ class VideoProcessor:
 
             ret, buffer = cv2.imencode('.jpg', annotated_frame)
             frame_bytes = buffer.tobytes()
+            self.last_frame_bytes = frame_bytes
 
             yield frame_bytes

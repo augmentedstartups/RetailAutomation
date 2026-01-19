@@ -12,6 +12,9 @@ interface Toggles {
     pose: boolean;
     heatmap: boolean;
     trailLength: number;
+    modelSizeIndex: number;
+    confidence: number;
+    paused: boolean;
 }
 
 interface DashboardControlsProps {
@@ -23,6 +26,9 @@ const API_URL = "http://localhost:8000/toggles";
 
 const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggles }) => {
 
+    const sizeOptions = ["n", "s", "m", "l", "x"];
+    const sizeLabels = ["Nano", "Small", "Medium", "Large", "X-Large"];
+
     const buildPayload = (next: Toggles) => ({
         tracking: next.tracking,
         trails: next.trails,
@@ -30,6 +36,9 @@ const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggl
         pose: next.pose,
         heatmap: next.heatmap,
         trail_length: next.trailLength,
+        model_size: sizeOptions[next.modelSizeIndex] ?? "m",
+        confidence: next.confidence,
+        paused: next.paused,
     });
 
     const handleToggleChange = async (key: keyof Toggles, value: boolean) => {
@@ -52,12 +61,52 @@ const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggl
         }
     };
 
+    const handleModelSizeChange = async (value: number[]) => {
+        const newToggles = { ...toggles, modelSizeIndex: value[0] };
+        setToggles(newToggles);
+        try {
+            await axios.post(API_URL, buildPayload(newToggles));
+        } catch (error) {
+            console.error("Failed to update model size:", error);
+        }
+    };
+
+    const handleConfidenceChange = async (value: number[]) => {
+        const newToggles = { ...toggles, confidence: value[0] };
+        setToggles(newToggles);
+        try {
+            await axios.post(API_URL, buildPayload(newToggles));
+        } catch (error) {
+            console.error("Failed to update confidence:", error);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Controls</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Speed</span>
+                        <span className="text-sm font-medium">Accuracy</span>
+                    </div>
+                    <Slider
+                        value={[toggles.modelSizeIndex]}
+                        min={0}
+                        max={4}
+                        step={1}
+                        onValueChange={handleModelSizeChange}
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{sizeLabels[0]}</span>
+                        <span>{sizeLabels[4]}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                        Selected: {sizeLabels[toggles.modelSizeIndex] ?? "Medium"}
+                    </div>
+                </div>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                         <Activity className="h-4 w-4" />
@@ -89,6 +138,19 @@ const DashboardControls: React.FC<DashboardControlsProps> = ({ toggles, setToggl
                         max={120}
                         step={5}
                         onValueChange={handleTrailLengthChange}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Confidence Threshold</span>
+                        <span className="text-xs font-mono">{toggles.confidence.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                        value={[toggles.confidence]}
+                        min={0.05}
+                        max={0.95}
+                        step={0.05}
+                        onValueChange={handleConfidenceChange}
                     />
                 </div>
                  <div className="flex items-center justify-between">
